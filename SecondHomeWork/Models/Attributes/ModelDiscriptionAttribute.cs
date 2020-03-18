@@ -7,10 +7,13 @@ namespace Model.Attributes
     [AttributeUsage(AttributeTargets.Property)]
     public class ModelDiscriptionAttribute : Attribute
     {
-        public string Discripition { get; private set; }
+        private string Discripition { get; set; }
         public ModelDiscriptionAttribute(string discription)
         {
             this.Discripition = discription;
+        }
+        public string GetDiscription() {
+            return this.Discripition;
         }
     }
 }

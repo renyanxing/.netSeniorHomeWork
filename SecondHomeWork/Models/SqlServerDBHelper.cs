@@ -32,38 +32,24 @@ namespace Model
             return Helper;
         }
 
-        public IEnumerable<TSource> GetDataArray<TSource>()
+        public List<TSource> GetDataArray<TSource>()
             where TSource : BaseModel
         {
             //string _sqlConnectString = ConfigurationManager.ConnectionStrings["First"].ToString();
             var type = typeof(TSource);
             string sqlCommandText = $"SELECT {string.Join(',', type.GetProperties().Select(p => { return $"[{p.Name}]"; }))} FROM [{type.Name}]";
-            List<TSource> result = new List<TSource>();
-            using (SqlConnection sqlConnection = new SqlConnection(_sqlConnectString))
-            {
-                sqlConnection.Open();
-                SqlCommand sqlCommand = new SqlCommand(sqlCommandText, sqlConnection);
+
+            return ExcuteSql(sqlCommandText, sqlCommand => {
                 var sqlDataReader = sqlCommand.ExecuteReader();
+                List<TSource> result = new List<TSource>();
                 while (sqlDataReader.Read())
                 {
-                    yield return Trans<TSource>(type, sqlDataReader);
+                    result.Add(Trans<TSource>(type, sqlDataReader));
+                   
                 }
-                //SqlDataAdapter sqlDataAdapter = new SqlDataAdapter(sql, conn);
-                //DataTable dataTable = new DataTable();
-                //sqlDataAdapter.Fill(dataTable);
-                //foreach (DataRow item in dataTable.Rows)
-                //{
-                //    object oObject = Activator.CreateInstance(type);
-                //    foreach (var property in type.GetProperties())
-                //    {
-                //        property.SetValue(oObject, item[property.Name] is DBNull ? null : item[property.Name]);
-                //    }
-                //    //result.Add((TSource)oObject);
-                //    yield return (TSource)oObject;
-                //}
-            }
-
-            //return result;
+                return result;
+            });
+            
         }
         private TSource Trans<TSource>(Type type, SqlDataReader sqlDataReader)
         {
@@ -74,13 +60,13 @@ namespace Model
                 DateToAgeAttribute dateToAgeAttribute = (DateToAgeAttribute)prop.GetCustomAttribute(typeof(DateToAgeAttribute));
                 if (dateToAgeAttribute != null)
                 {
-                    DateTime birth = Convert.ToDateTime(sqlDataReader[prop.GetEntityToModelByProperty()]);
+                    DateTime birth = Convert.ToDateTime(sqlDataReader[prop.Name]);
                     prop.SetValue(oObject, DateTime.Now.Year - birth.Year + 1);
 
                 }
                 else
                 {
-                    prop.SetValue(oObject, sqlDataReader[prop.GetEntityToModelByProperty()] is DBNull ? null : sqlDataReader[prop.GetEntityToModelByProperty()]);
+                    prop.SetValue(oObject, sqlDataReader[prop.Name] is DBNull ? null : sqlDataReader[prop.Name]);
 
                 }
             }
@@ -94,14 +80,28 @@ namespace Model
 
             ModelsAndEntitiesAttribute modelsAndEntitiesAttribute = (ModelsAndEntitiesAttribute)type.GetCustomAttribute(typeof(ModelsAndEntitiesAttribute));
             string sqlCommandText =
-                $"SELECT {string.Join(',', type.GetProperties().Select(p => { return $"[{p.GetEntityToModelByProperty()}]"; }))} FROM [{(modelsAndEntitiesAttribute == null ? type.Name : modelsAndEntitiesAttribute.EntityName)}] WHERE Id = {Id}";
+                $"SELECT {string.Join(',', type.GetProperties().Select(p => { return $"[{p.GetEntityToModelByProperty()}] as {p.Name}"; }))} FROM [{(modelsAndEntitiesAttribute == null ? type.Name : modelsAndEntitiesAttribute.EntityName)}] WHERE Id = {Id}";
 
-            using (SqlConnection sqlConnection = new SqlConnection(_sqlConnectString))
+            //using (SqlConnection sqlConnection = new SqlConnection(_sqlConnectString))
+            //{
+
+            //    SqlCommand sqlCommand = new SqlCommand(sqlCommandText, sqlConnection);
+            //    sqlConnection.Open();
+            //    var sqlDataReader = sqlCommand.ExecuteReader();
+
+            //    if (sqlDataReader.Read())
+            //    {
+            //        return Trans<TSource>(type, sqlDataReader);
+            //    }
+            //    else
+            //    {
+            //        return null;
+            //    }
+            //}
+
+            return ExcuteSql(sqlCommandText, command =>
             {
-
-                SqlCommand sqlCommand = new SqlCommand(sqlCommandText, sqlConnection);
-                sqlConnection.Open();
-                var sqlDataReader = sqlCommand.ExecuteReader();
+                var sqlDataReader = command.ExecuteReader();
 
                 if (sqlDataReader.Read())
                 {
@@ -111,7 +111,8 @@ namespace Model
                 {
                     return null;
                 }
-            }
+            });
+
         }
 
         public int AddData<TSource>(TSource source)
@@ -165,6 +166,17 @@ namespace Model
                 SqlCommand sqlCommand = new SqlCommand($"DELETE FROM {type.Name} WHERE Id=@Id", sqlConnection);
                 sqlCommand.Parameters.AddWithValue("Id", type.GetProperty("Id").GetValue(source));
                 return sqlCommand.ExecuteNonQuery();
+            }
+
+        }
+
+        private T ExcuteSql<T>(string sql , Func<SqlCommand,T> func)
+        {
+            using (SqlConnection sqlConnection =new SqlConnection(_sqlConnectString))
+            {
+                sqlConnection.Open();
+                SqlCommand sqlCommand = new SqlCommand(sql, sqlConnection);
+                return func.Invoke(sqlCommand);
             }
 
         }

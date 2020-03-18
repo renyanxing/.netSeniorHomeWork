@@ -10,13 +10,12 @@ namespace SecondHomeWork.Extends
 {
     public static class BaseModelExtend
     {
-        public static string GetAttributeDiscription<T>(this T property) where T : PropertyInfo
+        public static string GetAttributeDiscription(this PropertyInfo property)
         {
-            ModelDiscriptionAttribute modelDiscriptionAttribute = (ModelDiscriptionAttribute)property.GetCustomAttribute(typeof(ModelDiscriptionAttribute));
-            return modelDiscriptionAttribute != null ? modelDiscriptionAttribute.Discripition : property.Name;
+            return property.IsDefined(typeof(ModelDiscriptionAttribute), true) == true ? ((ModelDiscriptionAttribute)property.GetCustomAttribute(typeof(ModelDiscriptionAttribute), true)).GetDiscription() : property.Name;
         }
 
-        public static string GetEntityToModelByProperty<T>(this T property) where T : PropertyInfo
+        public static string GetEntityToModelByProperty(this PropertyInfo property)
         {
             ModelsAndEntitiesAttribute modelDiscriptionAttribute = (ModelsAndEntitiesAttribute)property.GetCustomAttribute(typeof(ModelsAndEntitiesAttribute));
             return modelDiscriptionAttribute != null ? modelDiscriptionAttribute.EntityName : property.Name;
