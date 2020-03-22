@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Data.SqlClient;
+using System.Reflection;
 
 namespace SqlServerHelper
 {
@@ -13,11 +14,14 @@ namespace SqlServerHelper
         static SqlHelper()
         {
             sqlHelper = new SqlHelper();
+            sqlHelper.sqlConnectionString = "";
         }
+
         public static SqlHelper GetIntance()
         {
             return sqlHelper;
         }
+        public string sqlConnectionString { get; set; }
 
         /// <summary>
         /// 获取数据库所有数据
@@ -26,12 +30,12 @@ namespace SqlServerHelper
         /// <param name="sqlConnectionString">数据库连接字符串</param>
         /// <param name="sqlCommandText">数据库查询语句</param>
         /// <returns></returns>
-        public IEnumerable<T> GetData<T>(string sqlConnectionString, string sqlCommandText)
+        public IEnumerable<T> GetData<T>(string sqlCommandText)
         {
-            return Excute(sqlConnectionString, sqlCommandText,null, sqlCommand =>
-            {
-                return Read<T>(sqlCommand.ExecuteReader());
-            });
+            return Excute(sqlConnectionString, sqlCommandText, null, sqlCommand =>
+             {
+                 return Read<T>(sqlCommand.ExecuteReader());
+             });
         }
         /// <summary>
         /// 按条件查找数据
@@ -42,16 +46,16 @@ namespace SqlServerHelper
         /// <param name="sqlCommandText">数据库查询语句</param>
         /// <param name="parameter">查询参数（参数匿名对象new { Id }</param>
         /// <returns></returns>
-        public T GetData<T, S>(string sqlConnectionString, string sqlCommandText, S parameter)
+        public T GetData<T, S>(string sqlCommandText, S parameter)
         {
             List<SqlParameter> parameterList = new List<SqlParameter>();
             string paramString = string.Join("AND", GetParameterStringList(parameter, out parameterList));
 
-            return Excute(sqlConnectionString, $"{sqlCommandText} where {paramString }",parameterList.ToArray(), sqlCommand =>
-            {
+            return Excute(sqlConnectionString, $"{sqlCommandText} where {paramString }", parameterList.ToArray(), sqlCommand =>
+             {
 
-                return Read<T>(sqlCommand.ExecuteReader()).FirstOrDefault();
-            });
+                 return Read<T>(sqlCommand.ExecuteReader()).FirstOrDefault();
+             });
         }
         /// <summary>
         /// 按自定义条件查找数据
@@ -62,9 +66,9 @@ namespace SqlServerHelper
         /// <param name="sqlCommandText">数据库查询语句</param>
         /// <param name="parameterString">查询参数字符串where a=@a and b=@b or c=@c </param>
         /// <returns></returns>
-        public T GetData<T,S>(string sqlConnectionString, string sqlCommandText, string parameterString,S parameter)
+        public T GetData<T, S>(string sqlCommandText, string parameterString, S parameter)
         {
-            
+
             return Excute(sqlConnectionString, $"{sqlCommandText} where {parameterString}", GetSqlParametersList(parameter).ToArray(), sqlCommand =>
             {
                 return Read<T>(sqlCommand.ExecuteReader()).FirstOrDefault();
@@ -81,12 +85,13 @@ namespace SqlServerHelper
         /// <param name="sortField">排序字段（默认值：Id）</param>
         /// <param name="ascending">升降序(默认升序)</param>
         /// <returns></returns>
-        public IEnumerable<T> GetData<T>(string sqlConnectionString, string sqlCommandText, int pageNumber, int pageSize, string sortField = "Id", string ascending = "asc")
+        public IEnumerable<T> GetData<T>(string sqlCommandText, int pageNumber, int pageSize, string sortField = "Id", string ascending = "asc")
         {
-            return Excute(sqlConnectionString, $"{sqlCommandText} order by {sortField} {ascending} offset {(pageNumber - 1) * pageSize} rows fetch next {pageSize} rows only",null, sqlCommand =>
-            {
-                return Read<T>(sqlCommand.ExecuteReader());
-            });
+            return Excute(sqlConnectionString, $"{sqlCommandText} order by {sortField} {ascending} offset {(pageNumber - 1) * pageSize} rows fetch next {pageSize} rows only", null, sqlCommand =>
+             {
+                 return Read<T>(sqlCommand.ExecuteReader());
+             });
+
         }
         /// <summary>
         /// 按条件分页获取表中数据
@@ -102,10 +107,10 @@ namespace SqlServerHelper
         /// <param name="parameter">查询参数（参数匿名对象new { Id }</param>
         /// <returns></returns>
 
-        public IEnumerable<T> GetData<T, S>(string sqlConnectionString, string sqlCommandText, S parameter, int pageNumber, int pageSize, string sortField = "Id", string ascending = "asc")
+        public IEnumerable<T> GetData<T, S>(string sqlCommandText, S parameter, int pageNumber, int pageSize, string sortField = "Id", string ascending = "asc")
         {
             List<SqlParameter> parameterList = new List<SqlParameter>();
-            string paramString = string.Join("AND", GetParameterStringList(parameter,out parameterList));
+            string paramString = string.Join("AND", GetParameterStringList(parameter, out parameterList));
             return Excute(sqlConnectionString, $"{sqlCommandText} where { paramString } order by {sortField} {ascending} offset {(pageNumber - 1) * pageSize} rows fetch next {pageSize} rows only", parameterList.ToArray(), sqlCommand =>
             {
                 return Read<T>(sqlCommand.ExecuteReader());
@@ -123,7 +128,7 @@ namespace SqlServerHelper
         /// <param name="ascending">升降序(默认升序)</param> 
         /// <param name="parameterString">查询参数字符串where xxx and xxx or xxx ???</param>
         /// <returns></returns>
-        public IEnumerable<T> GetData<T,S>(string sqlConnectionString, string sqlCommandText, string parameterString, int pageNumber, int pageSize, S parameter, string sortField = "Id", string ascending = "asc")
+        public IEnumerable<T> GetData<T, S>(string sqlCommandText, string parameterString, int pageNumber, int pageSize, S parameter, string sortField = "Id", string ascending = "asc")
         {
             return Excute(sqlConnectionString, $"{sqlCommandText} where { parameterString } order by {sortField} {ascending} offset {(pageNumber - 1) * pageSize} rows fetch next {pageSize} rows only", GetSqlParametersList(parameter).ToArray(), sqlCommand =>
             {
@@ -131,19 +136,33 @@ namespace SqlServerHelper
             });
         }
 
-        public bool AddData<T>(T source)
+        public bool AddData<T>(T tSource)
         {
-
-
-            return true;
+            Type type = tSource.GetType();
+            List<string> keys = type.GetProperties().ToList()
+                .Where(prop => prop.GetCustomAttribute(typeof(PrimeryKeyAttitude)) == null ? true : false)
+                .Select(p=> p.Name).ToList();
+            return Excute(sqlConnectionString, $"INSERT INTO [{type.Name}] ({string.Join(",", keys)}) VALUES ({string.Join(",", keys.Select(k => $"@{k}"))})", GetSqlParametersList(tSource).ToArray(),sqlcommand=> {
+                return sqlcommand.ExecuteNonQuery()>0;
+            });
         }
         public bool AddData<T>(List<T> sourceList)
         {
-
+            foreach (T item in sourceList)
+            {
+                AddData(item);
+            }
 
             return true;
         }
+        public bool UpdateData<T>() {
 
+
+
+
+
+            throw new Exception();
+        }
 
 
         private T Excute<T>(string sqlConnectionString, string sqlCommandText, SqlParameter[] parameters, Func<SqlCommand, T> func)
@@ -156,7 +175,7 @@ namespace SqlServerHelper
                 {
                     sqlCommand.Parameters.AddRange(parameters);
                 }
-                
+
                 return func.Invoke(sqlCommand);
             }
         }
@@ -185,9 +204,10 @@ namespace SqlServerHelper
             }
             return returnSource;
         }
-        private List<SqlParameter> GetSqlParametersList<T>(T source){
+        private List<SqlParameter> GetSqlParametersList<T>(T source)
+        {
 
-            List<SqlParameter>  parameters = new List<SqlParameter>();
+            List<SqlParameter> parameters = new List<SqlParameter>();
             foreach (var item in typeof(T).GetProperties())
             {
                 parameters.Add(new SqlParameter($@"{item.Name}", item.GetValue(source)));
