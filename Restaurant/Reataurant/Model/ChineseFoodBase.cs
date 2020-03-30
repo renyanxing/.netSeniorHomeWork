@@ -13,5 +13,9 @@ namespace Restaurant.Model
 
         public string Discription { get; set; }
         public abstract string Make();
+        internal ChineseFoodBase()
+        {
+
+        }
     }
 }

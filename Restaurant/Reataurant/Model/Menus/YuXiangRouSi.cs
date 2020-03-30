@@ -17,5 +17,9 @@ namespace Restaurant.Model.Menus
             int level = random.Next(0, 4);
             return FoodLevel[level];
         }
+        private YuXiangRouSi()
+        {
+
+        }
     }
 }
